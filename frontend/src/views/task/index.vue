@@ -63,9 +63,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 
 import { request } from '@/api/client'
+import { useRefreshStore } from '@/stores/refresh'
 
 type Row = Record<string, string | number | null>
 
@@ -74,6 +75,8 @@ const columns = ["任务编号", "任务名称", "关联源端", "采集频率",
 const actions = ["提交执行", "暂停任务", "恢复任务"]
 const statuses = ["草稿", "待执行", "执行中", "已完成"]
 const stats = [{"label": "采集任务总数", "value": 0}, {"label": "待执行任务", "value": 0}, {"label": "执行中任务", "value": 0}]
+
+const refreshStore = useRefreshStore()
 
 const rows = ref<Row[]>([])
 const total = ref(0)
@@ -99,7 +102,7 @@ async function runAction(action: string, row: Row) {
   try {
     const response = await request(`${ENDPOINT}/${row.id}/actions`, {
       method: 'POST',
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ values: { action } }),
     })
     if (!response.ok) {
       throw new Error('采集任务动作未生效，请稍后重试')
@@ -125,6 +128,9 @@ async function reload() {
     errorMessage.value = error instanceof Error ? error.message : '采集任务列表读取失败'
   }
 }
+
+// 增量游标提交水位后，任务页跟着刷新，起始水位才能读到新值
+watch(() => refreshStore.dataVersion, () => { void reload() })
 
 onMounted(reload)
 </script>

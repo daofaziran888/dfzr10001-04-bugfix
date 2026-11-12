@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.increment import IncrementService
 from app.store import store
 
 MODULE = "task"
@@ -10,6 +11,8 @@ REQUIRED_FIELDS = ["任务编号", "任务名称", "关联源端"]
 STATUS_ORDER = ["草稿", "待执行", "执行中", "已完成"]
 ACTION_RULES = {"提交执行": "待执行", "暂停任务": "执行中", "恢复任务": "已完成"}
 NEGATIVE_ACTIONS = []
+
+_increment_service = IncrementService()
 
 
 class TaskService:
@@ -58,4 +61,20 @@ class TaskService:
         entry["status"] = target
         entry["pending"] = target != STATUS_ORDER[-1]
         entry["abnormal"] = action in NEGATIVE_ACTIONS
+        if action == "提交执行":
+            self._apply_cursor_watermark(entry)
         return entry, f"采集任务已{action}"
+
+    @staticmethod
+    def _apply_cursor_watermark(entry: dict[str, Any]) -> None:
+        """提交执行时按关联源端读取增量游标的已提交水位，避免从错误水位启动。"""
+        source = str(entry.get("关联源端") or "").strip()
+        if not source:
+            return
+        watermark = _increment_service.watermark_for(source)
+        if watermark is None:
+            return
+        entry["起始水位"] = watermark.get("当前水位")
+        entry["本次续作条数"] = watermark.get("增量条数")
+        entry["水位采集时间"] = watermark.get("采集时间")
+        entry["失败条数"] = 0

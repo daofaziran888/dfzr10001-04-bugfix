@@ -29,19 +29,22 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 
 import { fetchJson } from '@/api/client'
+import { useRefreshStore } from '@/stores/refresh'
 
 type Overview = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]
 }
 
+const refreshStore = useRefreshStore()
+
 const cards = ref<Overview['cards']>([])
 const moduleRows = ref<Overview['modules']>([])
 
-onMounted(async () => {
+async function loadOverview() {
   try {
     const payload = await fetchJson<Overview>('/api/overview')
     cards.value = payload.cards
@@ -50,5 +53,10 @@ onMounted(async () => {
     cards.value = [{"label": "业务模块", "value": 0}, {"label": "今日新增", "value": 0}]
     moduleRows.value = [{"name": "采集源管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "网页抓取规则", "created": 0, "pending": 0, "abnormal": 0}, {"name": "采集任务", "created": 0, "pending": 0, "abnormal": 0}, {"name": "调度编排", "created": 0, "pending": 0, "abnormal": 0}, {"name": "增量采集游标", "created": 0, "pending": 0, "abnormal": 0}, {"name": "RPA流程配置", "created": 0, "pending": 0, "abnormal": 0}, {"name": "采集日志", "created": 0, "pending": 0, "abnormal": 0}, {"name": "失败重试策略", "created": 0, "pending": 0, "abnormal": 0}, {"name": "代理与请求控制", "created": 0, "pending": 0, "abnormal": 0}, {"name": "数据解析模板", "created": 0, "pending": 0, "abnormal": 0}, {"name": "采集去重", "created": 0, "pending": 0, "abnormal": 0}, {"name": "采集版本管理", "created": 0, "pending": 0, "abnormal": 0}, {"name": "采集告警", "created": 0, "pending": 0, "abnormal": 0}, {"name": "采集看板", "created": 0, "pending": 0, "abnormal": 0}, {"name": "采集数据存储", "created": 0, "pending": 0, "abnormal": 0}, {"name": "采集审计", "created": 0, "pending": 0, "abnormal": 0}]
   }
-})
+}
+
+// 增量游标动作提交后，工作台指标跟着刷新
+watch(() => refreshStore.dataVersion, () => { void loadOverview() })
+
+onMounted(loadOverview)
 </script>
